@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+import plotly.graph_objects as go
 import seaborn as sns
 import streamlit as st
 
@@ -8,6 +9,67 @@ st.set_page_config(
     page_title="Dashboard de Vigilância de Saúde Materna",
     layout="wide"
 )
+
+# Função para criar o mapa do Brasil
+
+
+def criar_mapa_brasil(df_filtrado, indicador_selecionado):
+    coordenadas = {
+        'Norte': {'lat': -3.7436, 'lon': -52.2739},
+        'Nordeste': {'lat': -8.0476, 'lon': -40.8476},
+        'Centro-Oeste': {'lat': -15.7975, 'lon': -52.9253},
+        'Sudeste': {'lat': -22.9068, 'lon': -43.1729},
+        'Sul': {'lat': -27.5954, 'lon': -48.5480}
+    }
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scattergeo(
+        lon=[coord['lon'] for coord in coordenadas.values()],
+        lat=[coord['lat'] for coord in coordenadas.values()],
+        text=list(coordenadas.keys()),
+        mode='markers+text',
+        marker=dict(size=10, color='red'),
+        textposition="bottom center",
+        name='Macrorregiões'
+    ))
+
+    fig.update_layout(
+        title='Mapa de Distribuição - ' + indicadores[indicador_selecionado],
+        geo=dict(
+            scope='south america',
+            projection_type='mercator',
+            showland=True,
+            landcolor='rgb(243, 243, 243)',
+            countrycolor='rgb(204, 204, 204)',
+            center=dict(lon=-55, lat=-15),
+            lataxis_range=[-35, 5],
+            lonaxis_range=[-75, -35]
+        ),
+        height=600,
+        margin=dict(l=0, r=0, t=30, b=0)
+    )
+
+    for i, origem in enumerate(coordenadas.keys()):
+        for destino in list(coordenadas.keys())[i+1:]:
+            valor_origem = df_filtrado[df_filtrado['Macro']
+                                       == origem][indicador_selecionado].mean()
+            valor_destino = df_filtrado[df_filtrado['Macro']
+                                        == destino][indicador_selecionado].mean()
+            valor_medio = (valor_origem + valor_destino) / 2
+
+            cor = f'rgba(255, {max(0, 255-valor_medio*2)}, 0, 0.5)'
+            largura = max(1, min(5, valor_medio/20))
+
+            fig.add_trace(go.Scattergeo(
+                lon=[coordenadas[origem]['lon'], coordenadas[destino]['lon']],
+                lat=[coordenadas[origem]['lat'], coordenadas[destino]['lat']],
+                mode='lines',
+                line=dict(width=largura, color=cor),
+                showlegend=False
+            ))
+
+    return fig
 
 # Função para carregar e preparar os dados
 
@@ -96,15 +158,6 @@ if df_filtrado.empty:
     st.warning("Não há dados disponíveis para os filtros selecionados.")
     st.stop()
 
-
-_ = """
-Este dashboard apresenta informações sobre os indicadores de saúde materna
-Exemplo de uso:
-Se estamos IN1(6 CONSULTAS) e queremos saber a média de consultas de pré-natal
-por macro-região, podemos selecionar o indicador IN1(6 CONSULTAS) e filtrar
-por Macro-região.
-
-"""
 # Estatísticas descritivas
 st.subheader("Estatísticas Descritivas")
 try:
@@ -140,14 +193,10 @@ try:
 except Exception as e:
     st.error(f"Erro ao gerar gráfico de distribuição: {str(e)}")
 
-
 # Mapa de calor por Regional
 st.markdown("---")
 st.subheader("Mapa de Calor por Regional")
 try:
-    _ = """
-    Pivot table para criar um mapa de calor com a média do indicador
-    """
     dados_regional = df_filtrado.pivot_table(
         values=indicador_selecionado,
         index='Regional',
@@ -155,15 +204,7 @@ try:
         aggfunc='mean'
     )
 
-    # Ordenar as colunas por ano
     fig_heatmap = plt.figure(figsize=(12, 8))
-
-    # Gerar o mapa de calor com a média do indicador
-    _ = """
-    cmap: paleta de cores
-    annot: exibir valores no mapa de calor
-    fmt: formatação dos valores
-    """
     sns.heatmap(dados_regional, cmap='YlOrRd', annot=True, fmt='.1f')
     plt.title(
         f"Distribuição por Regional - {indicadores[indicador_selecionado]}"
@@ -172,6 +213,15 @@ try:
     plt.close()
 except Exception as e:
     st.error(f"Erro ao gerar mapa de calor: {str(e)}")
+
+# Mapa do Brasil
+st.markdown("---")
+st.subheader("Mapa do Brasil")
+try:
+    fig_mapa = criar_mapa_brasil(df_filtrado, indicador_selecionado)
+    st.plotly_chart(fig_mapa, use_container_width=True)
+except Exception as e:
+    st.error(f"Erro ao gerar mapa do Brasil: {str(e)}")
 
 # Rodapé com informações
 st.markdown("---")
