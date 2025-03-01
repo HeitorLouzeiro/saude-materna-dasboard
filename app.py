@@ -10,34 +10,47 @@ st.set_page_config(
     layout="wide"
 )
 
-# Função para criar o mapa das macrorregiões
-
 
 def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
-    coordenadas_df = df[['Macro', 'LAT_RES',
-                         'LON_RES', 'MUN']]
+    # Obter coordenadas das macrorregiões
+    coordenadas_df = df[['Macro', 'LAT_RES', 'LON_RES', 'MUN']]
 
-    coordenadas = {
-        row['Macro']: {
+    # Obter lista única de municípios por macrorregião
+    municipios_por_macro = (df.groupby('Macro')['MUN']
+                            .agg(lambda x: '<br>'.join(sorted(set(x))))
+                            .to_dict())
+
+    # Criar dicionário de coordenadas
+    coordenadas = {}
+    for _, row in coordenadas_df.drop_duplicates('MUN').iterrows():
+        coordenadas[row['Macro']] = {
             'lat': row['LAT_RES'],
             'lon': row['LON_RES'],
-            'mun_ref': row['MUN']
+            'mun_ref': row['MUN'],
+            'municipios': municipios_por_macro.get(row['Macro'], '')
         }
-        for _, row in coordenadas_df.iterrows()
-    }
 
     fig = go.Figure()
 
-    fig.add_trace(go.Scattergeo(
-        lon=[coord['lon'] for coord in coordenadas.values()],
-        lat=[coord['lat'] for coord in coordenadas.values()],
-        text=[f"{macro} - {coord['mun_ref']}" for macro,
-              coord in coordenadas.items()],
-        mode='markers+text',
-        marker=dict(size=10, color='red'),
-        textposition="bottom center",
-        name='Macrorregiões'
-    ))
+    # Adicionar marcadores para cada macrorregião
+    for macro, coord in coordenadas.items():
+        # Preparar texto com lista de municípios
+        if macro_selecionada != "Todas" and macro == macro_selecionada:
+            texto = (f"{macro} - {coord['mun_ref']}<br>"
+                     f"Municípios:<br>{coord['municipios']}")
+        else:
+            texto = f"{macro} - {coord['mun_ref']}"
+
+        fig.add_trace(go.Scattergeo(
+            lon=[coord['lon']],
+            lat=[coord['lat']],
+            text=[texto],
+            mode='markers+text',
+            marker=dict(size=10, color='red'),
+            textposition="bottom center",
+            name='Macrorregiões',
+            hoverinfo='text'
+        ))
 
     fig.update_layout(
         title='Mapa de Distribuição - ' + indicadores[indicador_selecionado],
@@ -47,20 +60,21 @@ def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
             showland=True,
             landcolor='rgb(243, 243, 243)',
             countrycolor='rgb(204, 204, 204)',
-            center=dict(lon=-42, lat=-6),  # Centered on the state regions
-            lataxis_range=[-12, 0],        # Adjusted to zoom in on the regions
-            lonaxis_range=[-48, -36]       # Adjusted to zoom in on the regions
+            center=dict(lon=-42, lat=-6),
+            lataxis_range=[-12, 0],
+            lonaxis_range=[-48, -36]
         ),
         height=600,
         margin=dict(l=0, r=0, t=30, b=0)
     )
 
+    # Adicionar conexões entre macrorregiões
     for i, origem in enumerate(coordenadas.keys()):
         for destino in list(coordenadas.keys())[i+1:]:
-            valor_origem = df_filtrado[df_filtrado['Macro']
-                                       == origem][indicador_selecionado].mean()
-            valor_destino = df_filtrado[df_filtrado['Macro']
-                                        == destino][indicador_selecionado].mean()
+            valor_origem = df_filtrado[df_filtrado['Macro'] ==
+                                       origem][indicador_selecionado].mean()
+            valor_destino = df_filtrado[df_filtrado['Macro'] ==
+                                        destino][indicador_selecionado].mean()
             valor_medio = (valor_origem + valor_destino) / 2
 
             cor = f'rgba(255, {max(0, 255-valor_medio*2)}, 0, 0.5)'
@@ -77,8 +91,6 @@ def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
             ))
 
     return fig
-
-# Função para carregar e preparar os dados
 
 
 @st.cache_data
