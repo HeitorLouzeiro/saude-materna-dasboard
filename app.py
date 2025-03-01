@@ -13,13 +13,13 @@ st.set_page_config(
 # Função para criar o mapa do Brasil
 
 
-def criar_mapa_brasil(df_filtrado, indicador_selecionado):
+def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
     coordenadas = {
-        'Norte': {'lat': -3.7436, 'lon': -52.2739},
-        'Nordeste': {'lat': -8.0476, 'lon': -40.8476},
-        'Centro-Oeste': {'lat': -15.7975, 'lon': -52.9253},
-        'Sudeste': {'lat': -22.9068, 'lon': -43.1729},
-        'Sul': {'lat': -27.5954, 'lon': -48.5480}
+        'SEMIARIDO': {'lat': -8.0476, 'lon': -40.8476},    # Região Semiárida
+        'MEIO NORTE': {'lat': -5.7975, 'lon': -43.1729},   # Região Meio Norte
+        # Região dos Cerrados
+        'CERRADOS': {'lat': -7.2739, 'lon': -45.2739},
+        'LITORANEA': {'lat': -3.7436, 'lon': -41.8476}     # Região Litorânea
     }
 
     fig = go.Figure()
@@ -42,9 +42,9 @@ def criar_mapa_brasil(df_filtrado, indicador_selecionado):
             showland=True,
             landcolor='rgb(243, 243, 243)',
             countrycolor='rgb(204, 204, 204)',
-            center=dict(lon=-55, lat=-15),
-            lataxis_range=[-35, 5],
-            lonaxis_range=[-75, -35]
+            center=dict(lon=-42, lat=-6),  # Centered on the state regions
+            lataxis_range=[-12, 0],        # Adjusted to zoom in on the regions
+            lonaxis_range=[-48, -36]       # Adjusted to zoom in on the regions
         ),
         height=600,
         margin=dict(l=0, r=0, t=30, b=0)
@@ -214,14 +214,14 @@ try:
 except Exception as e:
     st.error(f"Erro ao gerar mapa de calor: {str(e)}")
 
-# Mapa do Brasil
+# Mapa das Macrorregiões
 st.markdown("---")
-st.subheader("Mapa do Brasil")
+st.subheader("Mapa das Macrorregiões")
 try:
-    fig_mapa = criar_mapa_brasil(df_filtrado, indicador_selecionado)
+    fig_mapa = criar_mapa_macrorregioes(df_filtrado, indicador_selecionado)
     st.plotly_chart(fig_mapa, use_container_width=True)
 except Exception as e:
-    st.error(f"Erro ao gerar mapa do Brasil: {str(e)}")
+    st.error(f"Erro ao gerar mapa das macrorregiões: {str(e)}")
 
 # Rodapé com informações
 st.markdown("---")
