@@ -10,16 +10,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# Função para criar o mapa do Brasil
+# Função para criar o mapa das macrorregiões
 
 
 def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
+    coordenadas_df = df[['Macro', 'LAT_RES',
+                         'LON_RES', 'MUN']]
+
     coordenadas = {
-        'SEMIARIDO': {'lat': -8.0476, 'lon': -40.8476},    # Região Semiárida
-        'MEIO NORTE': {'lat': -5.7975, 'lon': -43.1729},   # Região Meio Norte
-        # Região dos Cerrados
-        'CERRADOS': {'lat': -7.2739, 'lon': -45.2739},
-        'LITORANEA': {'lat': -3.7436, 'lon': -41.8476}     # Região Litorânea
+        row['Macro']: {
+            'lat': row['LAT_RES'],
+            'lon': row['LON_RES'],
+            'mun_ref': row['MUN']
+        }
+        for _, row in coordenadas_df.iterrows()
     }
 
     fig = go.Figure()
@@ -27,7 +31,8 @@ def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
     fig.add_trace(go.Scattergeo(
         lon=[coord['lon'] for coord in coordenadas.values()],
         lat=[coord['lat'] for coord in coordenadas.values()],
-        text=list(coordenadas.keys()),
+        text=[f"{macro} - {coord['mun_ref']}" for macro,
+              coord in coordenadas.items()],
         mode='markers+text',
         marker=dict(size=10, color='red'),
         textposition="bottom center",
@@ -66,6 +71,8 @@ def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
                 lat=[coordenadas[origem]['lat'], coordenadas[destino]['lat']],
                 mode='lines',
                 line=dict(width=largura, color=cor),
+                text=f"{origem} → {destino}: {valor_medio:.1f}%",
+                hoverinfo='text',
                 showlegend=False
             ))
 
