@@ -1,96 +1,199 @@
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 import streamlit as st
+
+# Configuração da página
+st.set_page_config(
+    page_title="Dashboard de Vigilância de Saúde Materna",
+    layout="wide"
+)
+
+# Função para carregar e preparar os dados
+
+
+@st.cache_data
+def load_data():
+    try:
+        df = pd.read_excel(
+            'data/IndicadoresConsolidados_SaudeMaterna_empilhado.xlsx'
+        )
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar os dados: {str(e)}")
+        return None
+
+
+# Carregando os dados
+df = load_data()
+
+if df is None:
+    st.stop()
 
 # Título do dashboard
 st.title("Dashboard de Vigilância de Saúde Materna")
+st.markdown("---")
 
-# Filtros
+# Sidebar com filtros
 st.sidebar.header("Filtros")
 
-# Intervalo de Anos
-ano_inicio, ano_fim = st.sidebar.slider(
-    "Intervalo de anos", 2012, 2023, (2012, 2023))
-st.sidebar.write(f"Anos selecionados: {ano_inicio} - {ano_fim}")
+# Anos disponíveis
+try:
+    anos_disponiveis = sorted(df['ANO'].unique())
+    ano_inicio, ano_fim = st.sidebar.slider(
+        "Intervalo de anos",
+        min_value=int(min(anos_disponiveis)),
+        max_value=int(max(anos_disponiveis)),
+        value=(int(min(anos_disponiveis)), int(max(anos_disponiveis)))
+    )
+except Exception as e:
+    st.error(f"Erro ao processar os anos disponíveis: {str(e)}")
+    st.stop()
 
-# Nível de Análise
-nivel_analise = st.sidebar.selectbox("Nível de análise",
-                                     ["Nacional", "Estadual", "Municipal"])
-st.sidebar.write(f"Nível de análise: {nivel_analise}")
+# Seleção de Macro-região
+macros = sorted(df['Macro'].unique())
+macro_selecionada = st.sidebar.selectbox(
+    "Macro-região",
+    ["Todas"] + list(macros)
+)
 
-# Bloco de Indicadores
-bloco_indicadores = st.sidebar.selectbox("Bloco de indicadores", [
-    "1 - Condições socioeconômicas e de acesso ao serviço de saúde",
-    "2 - Planejamento reprodutivo",
-    "3 - Assistência pré-natal",
-    "4 - Assistência ao parto",
-    "5 - Condições de nascimento",
-    "6 - Mortalidade e morbidade materna"
-])
-st.sidebar.write(f"Bloco de indicadores: {bloco_indicadores}")
+# Seleção de Regional
+regionais = sorted(df['Regional'].unique())
+regional_selecionada = st.sidebar.selectbox(
+    "Regional",
+    ["Todas"] + list(regionais)
+)
 
-# Indicador
-indicador = st.sidebar.selectbox("Indicador", [
-    "Porcentagem de nascidos vivos de mães com idade inferior a 20 anos",
-    "Porcentagem de nascidos vivos de mães com idade entre 20 a 34 anos",
-    "Porcentagem de nascidos vivos de mães com idade de 35 ou mais anos",
-    "Porcentagem de nascidos vivos de mães de raça/cor branca",
-    "Porcentagem de nascidos vivos de mães de raça/cor preta",
-    "Porcentagem de nascidos vivos de mães de raça/cor parda",
-    "Porcentagem de nascidos vivos de mães de raça/cor amarela",
-    "Porcentagem de nascidos vivos de mães de raça/cor indígena",
-    "Porcentagem de nascidos vivos de mães com menos de 4 anos de estudo",
-    "Porcentagem de nascidos vivos de mães com 4 a 7 anos de estudo",
-    "Porcentagem de nascidos vivos de mães com 8 a 11 anos de estudo",
-    "Porcentagem de nascidos vivos de mães com mais de 11 anos de estudo",
-    "Porcentagem de mulheres com 10 a 49 anos usuárias exclusivas do SUS",
-    "Cobertura populacional com equipes de Saúde da Família"
-])
-st.sidebar.write(f"Indicador: {indicador}")
+# Seleção de Indicador
+indicadores = {
+    'IN1(6 CONSULTAS)': 'Consultas de pré-natal',
+    'IN2 (HIV/SÍFILIS)': 'Testagem HIV/Sífilis',
+    'IN3 (NV 6 CON)': 'Nascidos vivos com 6+ consultas',
+    'IN4(PARTOS_CES)': 'Partos cesáreos',
+    'IN5Q1 (RMM)': 'Razão de mortalidade materna'
+}
 
-# Botão de Atualizar Resultados
-if st.sidebar.button("Atualizar resultados"):
-    st.sidebar.write(
-        "Resultados atualizados com base nos filtros selecionados.")
+indicador_selecionado = st.sidebar.selectbox(
+    "Indicador",
+    list(indicadores.keys()),
+    format_func=lambda x: indicadores[x]
+)
 
-# Gráfico de Resumo da Qualidade da Informação
-st.subheader("Resumo da Qualidade da Informação")
-qualidade = 75  # Exemplo de porcentagem
-st.metric(label="Qualidade da Informação", value=f"{qualidade}%", delta="")
+# Filtrando dados
+df_filtrado = df.copy()
 
-# Gráfico de Distribuição do Indicador por Região
-st.subheader("Distribuição do Indicador por Região do País")
-regioes = ['Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul']
-valores = [15, 25, 20, 30, 10]  # Exemplo de dados
-plt.figure(figsize=(10, 6))
-plt.bar(regioes, valores, color=['orange', 'pink', 'purple', 'blue', 'black'])
-plt.title("Distribuição do Indicador")
-plt.xlabel("Região")
-plt.ylabel("Porcentagem")
-st.pyplot(plt)
-plt.close()
+# Aplicando filtros
+df_filtrado = df_filtrado[df_filtrado['ANO'].between(ano_inicio, ano_fim)]
 
-# Gráfico de Evolução do Indicador ao Longo do Período
-st.subheader("Evolução do Indicador ao Longo do Período")
-anos = [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
-evolucao = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9]  # Dados fictícios
-plt.figure(figsize=(10, 6))
-plt.plot(anos, evolucao, marker='o', color='purple')
-plt.title("Evolução do Indicador")
-plt.xlabel("Ano")
-plt.ylabel("Porcentagem")
-plt.grid(True)
-st.pyplot(plt)
-plt.close()
+if macro_selecionada != "Todas":
+    df_filtrado = df_filtrado[df_filtrado['Macro'] == macro_selecionada]
 
-# Campos de entrada para dados do usuário
-gestational_age = st.number_input(
-    "Idade gestacional (semanas)", min_value=0, max_value=42)
-birth_weight = st.number_input(
-    "Peso ao nascer (kg)", min_value=0.0, max_value=10.0)
+if regional_selecionada != "Todas":
+    df_filtrado = df_filtrado[df_filtrado['Regional'] == regional_selecionada]
 
-# Exibir os dados de entrada
-st.write(f"Idade gestacional: {gestational_age} semanas")
-st.write(f"Peso ao nascer: {birth_weight} kg")
+# Verificar se há dados após a filtragem
+if df_filtrado.empty:
+    st.warning("Não há dados disponíveis para os filtros selecionados.")
+    st.stop()
 
-# Placeholder para futuras visualizações
-st.write("Visualizações virão aqui.")
+
+_ = """
+Este dashboard apresenta informações sobre os indicadores de saúde materna
+Exemplo de uso:
+Se estamos IN1(6 CONSULTAS) e queremos saber a média de consultas de pré-natal
+por macro-região, podemos selecionar o indicador IN1(6 CONSULTAS) e filtrar
+por Macro-região.
+
+"""
+# Estatísticas descritivas
+st.subheader("Estatísticas Descritivas")
+try:
+    media = df_filtrado[indicador_selecionado].mean()
+    mediana = df_filtrado[indicador_selecionado].median()
+    desvio = df_filtrado[indicador_selecionado].std()
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Média", f"{media:.2f}%")
+    with col2:
+        st.metric("Mediana", f"{mediana:.2f}%")
+    with col3:
+        st.metric("Desvio Padrão", f"{desvio:.2f}")
+except Exception as e:
+    st.error(f"Erro ao calcular estatísticas: {str(e)}")
+
+st.markdown("---")
+# Gráfico de distribuição por Macro
+st.subheader("Distribuição por Macro-região")
+try:
+    dados_macro = df_filtrado.groupby('Macro')[indicador_selecionado].mean()
+    fig_macro = plt.figure(figsize=(10, 6))
+    plt.bar(dados_macro.index, dados_macro.values)
+    plt.title(
+        f"Média por Macro-região - {indicadores[indicador_selecionado]}"
+    )
+    plt.xlabel("Macro-região")
+    plt.ylabel("Valor (%)")
+    plt.xticks(rotation=45)
+    st.pyplot(fig_macro)
+    plt.close()
+except Exception as e:
+    st.error(f"Erro ao gerar gráfico de distribuição: {str(e)}")
+
+
+# Mapa de calor por Regional
+st.markdown("---")
+st.subheader("Mapa de Calor por Regional")
+try:
+    _ = """
+    Pivot table para criar um mapa de calor com a média do indicador
+    """
+    dados_regional = df_filtrado.pivot_table(
+        values=indicador_selecionado,
+        index='Regional',
+        columns='ANO',
+        aggfunc='mean'
+    )
+
+    # Ordenar as colunas por ano
+    fig_heatmap = plt.figure(figsize=(12, 8))
+
+    # Gerar o mapa de calor com a média do indicador
+    _ = """
+    cmap: paleta de cores
+    annot: exibir valores no mapa de calor
+    fmt: formatação dos valores
+    """
+    sns.heatmap(dados_regional, cmap='YlOrRd', annot=True, fmt='.1f')
+    plt.title(
+        f"Distribuição por Regional - {indicadores[indicador_selecionado]}"
+    )
+    st.pyplot(fig_heatmap)
+    plt.close()
+except Exception as e:
+    st.error(f"Erro ao gerar mapa de calor: {str(e)}")
+
+# Rodapé com informações
+st.markdown("---")
+st.markdown("""
+    **Fonte dos dados:** Ministério da Saúde
+    
+    **Observações:**
+    - Os dados apresentados são calculados com base nos registros oficiais
+    - Os valores são atualizados conforme a disponibilidade dos dados
+""")
+
+# Informações sobre o indicador selecionado
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Informações do Indicador")
+st.sidebar.markdown(f"""
+    **Indicador Selecionado:**  
+    {indicadores[indicador_selecionado]}
+    
+    **Período:**  
+    {ano_inicio} - {ano_fim}
+    
+    **Filtros Ativos:**
+    - Macro: {macro_selecionada}
+    - Regional: {regional_selecionada}
+""")
