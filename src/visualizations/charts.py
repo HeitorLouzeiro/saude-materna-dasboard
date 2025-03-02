@@ -152,7 +152,8 @@ def plot_histogram(df_filtrado, indicador_selecionado):
         df_filtrado (pandas.DataFrame): DataFrame filtrado
         indicador_selecionado (str): Nome do indicador
     """
-    fig = plt.figure(figsize=(10, 6))
+    # Reduzindo o tamanho da figura para 4x4
+    fig = plt.figure(figsize=(4, 4))
     sns.histplot(
         df_filtrado[indicador_selecionado],
         bins=20,
