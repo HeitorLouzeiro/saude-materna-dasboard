@@ -1,109 +1,19 @@
-import matplotlib.pyplot as plt
-import pandas as pd
-import plotly.graph_objects as go
-import seaborn as sns
+"""
+Aplicação principal do Dashboard de Vigilância de Saúde Materna
+"""
 import streamlit as st
 
+from src.config import INDICADORES, PAGE_CONFIG
+from src.data.loader import (filter_data, get_available_macros,
+                             get_available_regionals, get_available_years,
+                             load_data)
+from src.visualizations.charts import (plot_heatmap, plot_histogram,
+                                       plot_macro_distribution, plot_pie_chart,
+                                       plot_stats, plot_timeline)
+from src.visualizations.maps import criar_mapa_macrorregioes
+
 # Configuração da página
-st.set_page_config(
-    page_title="Dashboard de Vigilância de Saúde Materna",
-    layout="wide"
-)
-
-
-def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado):
-    # Obter coordenadas das macrorregiões
-    coordenadas_df = df[['Macro', 'LAT_RES', 'LON_RES', 'MUN']]
-
-    # Obter lista única de municípios por macrorregião
-    municipios_por_macro = (df.groupby('Macro')['MUN']
-                            .agg(lambda x: '<br>'.join(sorted(set(x))))
-                            .to_dict())
-
-    # Criar dicionário de coordenadas
-    coordenadas = {}
-    for _, row in coordenadas_df.drop_duplicates('MUN').iterrows():
-        coordenadas[row['Macro']] = {
-            'lat': row['LAT_RES'],
-            'lon': row['LON_RES'],
-            'mun_ref': row['MUN'],
-            'municipios': municipios_por_macro.get(row['Macro'], '')
-        }
-
-    fig = go.Figure()
-
-    # Adicionar marcadores para cada macrorregião
-    for macro, coord in coordenadas.items():
-        # Preparar texto com lista de municípios
-        if macro_selecionada != "Todas" and macro == macro_selecionada:
-            texto = (f"{macro} - {coord['mun_ref']}<br>"
-                     f"Municípios:<br>{coord['municipios']}")
-        else:
-            texto = f"{macro} - {coord['mun_ref']}"
-
-        fig.add_trace(go.Scattergeo(
-            lon=[coord['lon']],
-            lat=[coord['lat']],
-            text=[texto],
-            mode='markers+text',
-            marker=dict(size=10, color='red'),
-            textposition="bottom center",
-            name='Macrorregiões',
-            hoverinfo='text'
-        ))
-
-    fig.update_layout(
-        title='Mapa de Distribuição - ' + indicadores[indicador_selecionado],
-        geo=dict(
-            scope='south america',
-            projection_type='mercator',
-            showland=True,
-            landcolor='rgb(243, 243, 243)',
-            countrycolor='rgb(204, 204, 204)',
-            center=dict(lon=-42, lat=-6),
-            lataxis_range=[-12, 0],
-            lonaxis_range=[-48, -36]
-        ),
-        height=600,
-        margin=dict(l=0, r=0, t=30, b=0)
-    )
-
-    # Adicionar conexões entre macrorregiões
-    for i, origem in enumerate(coordenadas.keys()):
-        for destino in list(coordenadas.keys())[i+1:]:
-            valor_origem = df_filtrado[df_filtrado['Macro'] ==
-                                       origem][indicador_selecionado].mean()
-            valor_destino = df_filtrado[df_filtrado['Macro'] ==
-                                        destino][indicador_selecionado].mean()
-            valor_medio = (valor_origem + valor_destino) / 2
-
-            cor = f'rgba(255, {max(0, 255-valor_medio*2)}, 0, 0.5)'
-            largura = max(1, min(5, valor_medio/20))
-
-            fig.add_trace(go.Scattergeo(
-                lon=[coordenadas[origem]['lon'], coordenadas[destino]['lon']],
-                lat=[coordenadas[origem]['lat'], coordenadas[destino]['lat']],
-                mode='lines',
-                line=dict(width=largura, color=cor),
-                text=f"{origem} → {destino}: {valor_medio:.1f}%",
-                hoverinfo='text',
-                showlegend=False
-            ))
-
-    return fig
-
-
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_excel(
-            'data/IndicadoresConsolidados_SaudeMaterna_empilhado.xlsx'
-        )
-        return df
-    except Exception as e:
-        st.error(f"Erro ao carregar os dados: {str(e)}")
-        return None
-
+st.set_page_config(**PAGE_CONFIG)
 
 # Carregando os dados
 df = load_data()
@@ -120,7 +30,7 @@ st.sidebar.header("Filtros")
 
 # Anos disponíveis
 try:
-    anos_disponiveis = sorted(df['ANO'].unique())
+    anos_disponiveis = get_available_years(df)
     ano_inicio, ano_fim = st.sidebar.slider(
         "Intervalo de anos",
         min_value=int(min(anos_disponiveis)),
@@ -132,45 +42,34 @@ except Exception as e:
     st.stop()
 
 # Seleção de Macro-região
-macros = sorted(df['Macro'].unique())
+macros = get_available_macros(df)
 macro_selecionada = st.sidebar.selectbox(
     "Macro-região",
     ["Todas"] + list(macros)
 )
 
 # Seleção de Regional
-regionais = sorted(df['Regional'].unique())
+regionais = get_available_regionals(df)
 regional_selecionada = st.sidebar.selectbox(
     "Regional",
     ["Todas"] + list(regionais)
 )
 
 # Seleção de Indicador
-indicadores = {
-    'IN1(6 CONSULTAS)': 'Consultas de pré-natal',
-    'IN2 (HIV/SÍFILIS)': 'Testagem HIV/Sífilis',
-    'IN3 (NV 6 CON)': 'Nascidos vivos com 6+ consultas',
-    'IN4(PARTOS_CES)': 'Partos cesáreos',
-    'IN5Q1 (RMM)': 'Razão de mortalidade materna'
-}
-
 indicador_selecionado = st.sidebar.selectbox(
     "Indicador",
-    list(indicadores.keys()),
-    format_func=lambda x: indicadores[x]
+    list(INDICADORES.keys()),
+    format_func=lambda x: INDICADORES[x]
 )
 
 # Filtrando dados
-df_filtrado = df.copy()
-
-# Aplicando filtros
-df_filtrado = df_filtrado[df_filtrado['ANO'].between(ano_inicio, ano_fim)]
-
-if macro_selecionada != "Todas":
-    df_filtrado = df_filtrado[df_filtrado['Macro'] == macro_selecionada]
-
-if regional_selecionada != "Todas":
-    df_filtrado = df_filtrado[df_filtrado['Regional'] == regional_selecionada]
+df_filtrado = filter_data(
+    df,
+    ano_inicio,
+    ano_fim,
+    macro_selecionada,
+    regional_selecionada
+)
 
 # Verificar se há dados após a filtragem
 if df_filtrado.empty:
@@ -180,35 +79,15 @@ if df_filtrado.empty:
 # Estatísticas descritivas
 st.subheader("Estatísticas Descritivas")
 try:
-    media = df_filtrado[indicador_selecionado].mean()
-    mediana = df_filtrado[indicador_selecionado].median()
-    desvio = df_filtrado[indicador_selecionado].std()
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Média", f"{media:.2f}%")
-    with col2:
-        st.metric("Mediana", f"{mediana:.2f}%")
-    with col3:
-        st.metric("Desvio Padrão", f"{desvio:.2f}")
+    plot_stats(df_filtrado, indicador_selecionado)
 except Exception as e:
     st.error(f"Erro ao calcular estatísticas: {str(e)}")
 
-st.markdown("---")
 # Gráfico de distribuição por Macro
+st.markdown("---")
 st.subheader("Distribuição por Macro-região")
 try:
-    dados_macro = df_filtrado.groupby('Macro')[indicador_selecionado].mean()
-    fig_macro = plt.figure(figsize=(10, 6))
-    plt.bar(dados_macro.index, dados_macro.values)
-    plt.title(
-        f"Média por Macro-região - {indicadores[indicador_selecionado]}"
-    )
-    plt.xlabel("Macro-região")
-    plt.ylabel("Valor (%)")
-    plt.xticks(rotation=45)
-    st.pyplot(fig_macro)
-    plt.close()
+    plot_macro_distribution(df_filtrado, indicador_selecionado)
 except Exception as e:
     st.error(f"Erro ao gerar gráfico de distribuição: {str(e)}")
 
@@ -216,20 +95,7 @@ except Exception as e:
 st.markdown("---")
 st.subheader("Mapa de Calor por Regional")
 try:
-    dados_regional = df_filtrado.pivot_table(
-        values=indicador_selecionado,
-        index='Regional',
-        columns='ANO',
-        aggfunc='mean'
-    )
-
-    fig_heatmap = plt.figure(figsize=(12, 8))
-    sns.heatmap(dados_regional, cmap='YlOrRd', annot=True, fmt='.1f')
-    plt.title(
-        f"Distribuição por Regional - {indicadores[indicador_selecionado]}"
-    )
-    st.pyplot(fig_heatmap)
-    plt.close()
+    plot_heatmap(df_filtrado, indicador_selecionado)
 except Exception as e:
     st.error(f"Erro ao gerar mapa de calor: {str(e)}")
 
@@ -237,121 +103,43 @@ except Exception as e:
 st.markdown("---")
 st.subheader("Mapa das Macrorregiões")
 try:
-    fig_mapa = criar_mapa_macrorregioes(df_filtrado, indicador_selecionado)
+    fig_mapa = criar_mapa_macrorregioes(
+        df_filtrado,
+        indicador_selecionado,
+        macro_selecionada
+    )
     st.plotly_chart(fig_mapa, use_container_width=True)
 except Exception as e:
     st.error(f"Erro ao gerar mapa das macrorregiões: {str(e)}")
 
-
-# Gráfico de distribuição por Macro-região
-st.subheader("Distribuição por Macro-região")
-
-try:
-    dados_macro = df_filtrado.groupby(
-        'Macro')[indicador_selecionado].mean().reset_index()
-
-    fig_macro = go.Figure(data=[
-        go.Bar(
-            x=dados_macro["Macro"],
-            y=dados_macro[indicador_selecionado],
-            marker=dict(color='skyblue'),
-            text=dados_macro[indicador_selecionado].round(2),
-            textposition='outside'
-        )
-    ])
-
-    fig_macro.update_layout(
-        title=f"Média por Macro-região - {indicadores[indicador_selecionado]}",
-        xaxis_title="Macro-região",
-        yaxis_title="Valor (%)",
-        xaxis_tickangle=-45
-    )
-
-    st.plotly_chart(fig_macro, use_container_width=True)
-except Exception as e:
-    st.error(f"Erro ao gerar gráfico de distribuição: {str(e)}")
-
-
-# Gráfico de Linha do Tempo
+# Linha do Tempo
 st.markdown("---")
 st.subheader("Linha do Tempo - Evolução do Indicador")
-
 try:
-    dados_tempo = df_filtrado.groupby(
-        "ANO")[indicador_selecionado].mean().reset_index()
-
-    fig_linha = go.Figure()
-    fig_linha.add_trace(
-        go.Scatter(
-            x=dados_tempo["ANO"],
-            y=dados_tempo[indicador_selecionado],
-            mode="lines+markers",
-            line=dict(color="blue", width=2),
-            marker=dict(size=8, color="red")
-        )
-    )
-
-    fig_linha.update_layout(
-        title=f"Evolução do Indicador: {indicadores[indicador_selecionado]}",
-        xaxis_title="Ano",
-        yaxis_title="Valor (%)",
-        xaxis=dict(tickmode="linear"),
-        yaxis=dict(showgrid=True)
-    )
-
-    st.plotly_chart(fig_linha, use_container_width=True)
+    plot_timeline(df_filtrado, indicador_selecionado)
 except Exception as e:
     st.error(f"Erro ao gerar gráfico de linha do tempo: {str(e)}")
 
 # Gráfico de Pizza por Regional
 st.markdown("---")
 st.subheader("Proporção do Indicador por Regional")
-
 try:
-    dados_pizza = df_filtrado.groupby(
-        "Regional")[indicador_selecionado].sum().reset_index()
-
-    fig_pizza = go.Figure(
-        data=[
-            go.Pie(
-                labels=dados_pizza["Regional"],
-                values=dados_pizza[indicador_selecionado],
-                hole=0.3,
-                textinfo="percent+label"
-            )
-        ]
-    )
-
-    fig_pizza.update_layout(title=f"Proporção do Indicador por Regional")
-
-    st.plotly_chart(fig_pizza, use_container_width=True)
+    plot_pie_chart(df_filtrado, indicador_selecionado)
 except Exception as e:
     st.error(f"Erro ao gerar gráfico de pizza: {str(e)}")
 
-# Histograma do Indicador
+# Histograma
 st.markdown("---")
 st.subheader("Histograma - Distribuição dos Indicadores")
-
 try:
-    fig_hist = plt.figure(figsize=(10, 6))
-    sns.histplot(df_filtrado[indicador_selecionado],
-                 bins=20, kde=True, color="royalblue")
-
-    plt.title(
-        f"Distribuição do Indicador - {indicadores[indicador_selecionado]}")
-    plt.xlabel("Valor (%)")
-    plt.ylabel("Frequência")
-
-    st.pyplot(fig_hist)
-    plt.close()
+    plot_histogram(df_filtrado, indicador_selecionado)
 except Exception as e:
     st.error(f"Erro ao gerar histograma: {str(e)}")
-
 
 # Rodapé com informações
 st.markdown("---")
 st.markdown("""
-    **Fonte dos dados:** Ministério da Saúde
+    **Fonte dos dados:** Fiocruz
     
     **Observações:**
     - Os dados apresentados são calculados com base nos registros oficiais
@@ -362,12 +150,12 @@ st.markdown("""
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Informações do Indicador")
 st.sidebar.markdown(f"""
-    **Indicador Selecionado:**  
-    {indicadores[indicador_selecionado]}
-    
-    **Período:**  
+    **Indicador Selecionado:**
+    {INDICADORES[indicador_selecionado]}
+
+    **Período:**
     {ano_inicio} - {ano_fim}
-    
+
     **Filtros Ativos:**
     - Macro: {macro_selecionada}
     - Regional: {regional_selecionada}
