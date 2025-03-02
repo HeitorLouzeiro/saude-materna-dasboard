@@ -242,6 +242,112 @@ try:
 except Exception as e:
     st.error(f"Erro ao gerar mapa das macrorregiões: {str(e)}")
 
+
+# Gráfico de distribuição por Macro-região
+st.subheader("Distribuição por Macro-região")
+
+try:
+    dados_macro = df_filtrado.groupby(
+        'Macro')[indicador_selecionado].mean().reset_index()
+
+    fig_macro = go.Figure(data=[
+        go.Bar(
+            x=dados_macro["Macro"],
+            y=dados_macro[indicador_selecionado],
+            marker=dict(color='skyblue'),
+            text=dados_macro[indicador_selecionado].round(2),
+            textposition='outside'
+        )
+    ])
+
+    fig_macro.update_layout(
+        title=f"Média por Macro-região - {indicadores[indicador_selecionado]}",
+        xaxis_title="Macro-região",
+        yaxis_title="Valor (%)",
+        xaxis_tickangle=-45
+    )
+
+    st.plotly_chart(fig_macro, use_container_width=True)
+except Exception as e:
+    st.error(f"Erro ao gerar gráfico de distribuição: {str(e)}")
+
+
+# Gráfico de Linha do Tempo
+st.markdown("---")
+st.subheader("Linha do Tempo - Evolução do Indicador")
+
+try:
+    dados_tempo = df_filtrado.groupby(
+        "ANO")[indicador_selecionado].mean().reset_index()
+
+    fig_linha = go.Figure()
+    fig_linha.add_trace(
+        go.Scatter(
+            x=dados_tempo["ANO"],
+            y=dados_tempo[indicador_selecionado],
+            mode="lines+markers",
+            line=dict(color="blue", width=2),
+            marker=dict(size=8, color="red")
+        )
+    )
+
+    fig_linha.update_layout(
+        title=f"Evolução do Indicador: {indicadores[indicador_selecionado]}",
+        xaxis_title="Ano",
+        yaxis_title="Valor (%)",
+        xaxis=dict(tickmode="linear"),
+        yaxis=dict(showgrid=True)
+    )
+
+    st.plotly_chart(fig_linha, use_container_width=True)
+except Exception as e:
+    st.error(f"Erro ao gerar gráfico de linha do tempo: {str(e)}")
+
+# Gráfico de Pizza por Regional
+st.markdown("---")
+st.subheader("Proporção do Indicador por Regional")
+
+try:
+    dados_pizza = df_filtrado.groupby(
+        "Regional")[indicador_selecionado].sum().reset_index()
+
+    fig_pizza = go.Figure(
+        data=[
+            go.Pie(
+                labels=dados_pizza["Regional"],
+                values=dados_pizza[indicador_selecionado],
+                hole=0.3,
+                textinfo="percent+label"
+            )
+        ]
+    )
+
+    fig_pizza.update_layout(title=f"Proporção do Indicador por Regional")
+
+    st.plotly_chart(fig_pizza, use_container_width=True)
+except Exception as e:
+    st.error(f"Erro ao gerar gráfico de pizza: {str(e)}")
+
+# Histograma do Indicador
+st.markdown("---")
+st.subheader("Histograma - Distribuição dos Indicadores")
+
+try:
+    fig_hist = plt.figure(figsize=(10, 6))
+    sns.histplot(df_filtrado[indicador_selecionado],
+                 bins=20, kde=True, color="royalblue")
+
+    plt.title(
+        f"Distribuição do Indicador - {indicadores[indicador_selecionado]}")
+    plt.xlabel("Valor (%)")
+    plt.ylabel("Frequência")
+
+    st.pyplot(fig_hist)
+    plt.close()
+except Exception as e:
+    st.error(f"Erro ao gerar histograma: {str(e)}")
+
+
 # Rodapé com informações
 st.markdown("---")
 st.markdown("""
