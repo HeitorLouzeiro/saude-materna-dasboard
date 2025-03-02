@@ -112,21 +112,23 @@ try:
 except Exception as e:
     st.error(f"Erro ao gerar mapa das macrorregiões: {str(e)}")
 
-# Linha do Tempo
+# Linha do Tempo e Gráfico de Pizza lado a lado
 st.markdown("---")
-st.subheader("Linha do Tempo - Evolução do Indicador")
-try:
-    plot_timeline(df_filtrado, indicador_selecionado)
-except Exception as e:
-    st.error(f"Erro ao gerar gráfico de linha do tempo: {str(e)}")
+col1, col2 = st.columns(2)
 
-# Gráfico de Pizza por Regional
-st.markdown("---")
-st.subheader("Proporção do Indicador por Regional")
-try:
-    plot_pie_chart(df_filtrado, indicador_selecionado)
-except Exception as e:
-    st.error(f"Erro ao gerar gráfico de pizza: {str(e)}")
+with col1:
+    st.subheader("Linha do Tempo - Evolução do Indicador")
+    try:
+        plot_timeline(df_filtrado, indicador_selecionado)
+    except Exception as e:
+        st.error(f"Erro ao gerar gráfico de linha do tempo: {str(e)}")
+
+with col2:
+    st.subheader("Proporção do Indicador por Regional")
+    try:
+        plot_pie_chart(df_filtrado, indicador_selecionado)
+    except Exception as e:
+        st.error(f"Erro ao gerar gráfico de pizza: {str(e)}")
 
 # Histograma
 st.markdown("---")
@@ -150,12 +152,12 @@ st.markdown("""
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Informações do Indicador")
 st.sidebar.markdown(f"""
-    **Indicador Selecionado:**
+    **Indicador Selecionado:**  
     {INDICADORES[indicador_selecionado]}
-
-    **Período:**
+    
+    **Período:**  
     {ano_inicio} - {ano_fim}
-
+    
     **Filtros Ativos:**
     - Macro: {macro_selecionada}
     - Regional: {regional_selecionada}
