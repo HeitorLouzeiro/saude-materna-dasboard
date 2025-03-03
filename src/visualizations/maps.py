@@ -6,11 +6,11 @@ import json
 import folium
 import pandas as pd
 
-from ..config import INDICADORES
+from ..config import DATA_PATH, GEOJSON_PATH, INDICADORES
 
 
-def criar_mapa_cobertura_consultas(caminho_excel="data/IndicadoresConsolidados_SaudeMaterna_empilhado.xlsx",
-                                   caminho_geojson="data/geojs-22-mun.json",
+def criar_mapa_cobertura_consultas(caminho_excel=DATA_PATH,
+                                   caminho_geojson=GEOJSON_PATH,
                                    ano_inicio=None,
                                    ano_fim=None,
                                    macro_selecionada="Todas",
