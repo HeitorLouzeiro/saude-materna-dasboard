@@ -1,88 +1,132 @@
 """
-Funções para criação e visualização de mapas
+Funções para criação e visualização de mapas interativos
 """
-import plotly.graph_objects as go
-import streamlit as st
 
-from ..config import INDICADORES, MAP_CONFIG
-from ..utils.map_utils import (calculate_connection_style,
-                               get_coordinates_data, get_macro_text)
+import json
+
+import branca
+import folium
+import pandas as pd
+
+from ..config import DATA_PATH, GEOJSON_PATH, INDICADORES
 
 
-def criar_mapa_macrorregioes(df_filtrado, indicador_selecionado, macro_selecionada):
+def criar_mapa_cobertura_consultas(caminho_excel=DATA_PATH,
+                                   caminho_geojson=GEOJSON_PATH,
+                                   ano_inicio=None,
+                                   ano_fim=None,
+                                   macro_selecionada="Todas",
+                                   regional_selecionada="Todas",
+                                   indicador_selecionado="IN2 (HIV/SÍFILIS)"):
     """
-    Cria o mapa interativo das macrorregiões.
+    Cria um mapa interativo de cobertura de consultas usando Folium.
 
     Args:
-        df_filtrado (pandas.DataFrame): DataFrame filtrado
-        indicador_selecionado (str): Nome do indicador
-        macro_selecionada (str): Macrorregião selecionada
+        caminho_excel (str): Caminho para o arquivo Excel com os dados
+        caminho_geojson (str): Caminho para o arquivo GeoJSON com os dados geográficos
+        ano_inicio (int, optional): Ano inicial para filtrar os dados
+        ano_fim (int, optional): Ano final para filtrar os dados
+        macro_selecionada (str, optional): Macro-região selecionada para filtrar os dados
+        regional_selecionada (str, optional): Regional selecionada para filtrar os dados
+        indicador_selecionado (str, optional): Indicador selecionado para exibir no mapa
 
     Returns:
-        plotly.graph_objects.Figure: Figura do mapa
+        tuple: (folium.Map, str) Retorna o objeto do mapa e o HTML do mapa
     """
-    coordenadas = get_coordinates_data(df_filtrado)
 
-    fig = go.Figure()
+    # Carregar os dados
+    df = pd.read_excel(caminho_excel, sheet_name=0)
 
-    # Adicionar marcadores para cada macrorregião
-    for macro, coord in coordenadas.items():
-        texto = get_macro_text(macro, coord, macro_selecionada)
+    # Verificar se a coluna "MUN" existe
+    if "MUN" not in df.columns:
+        raise ValueError("A coluna 'MUN' não foi encontrada no DataFrame.")
 
-        fig.add_trace(go.Scattergeo(
-            lon=[coord['lon']],
-            lat=[coord['lat']],
-            text=[texto],
-            mode='markers+text',
-            marker=dict(size=10, color='red'),
-            textposition="bottom center",
-            name='Macrorregiões',
-            hoverinfo='text'
-        ))
+    # Obter anos disponíveis e filtrar
+    anos_disponiveis = sorted(df["ANO"].unique())
 
-    # Adicionar conexões entre macrorregiões
-    for i, origem in enumerate(coordenadas.keys()):
-        for destino in list(coordenadas.keys())[i+1:]:
-            valor_origem = df_filtrado[
-                df_filtrado['Macro'] == origem
-            ][indicador_selecionado].mean()
+    if ano_inicio is not None and ano_fim is not None:
+        df = df[(df["ANO"] >= ano_inicio) & (df["ANO"] <= ano_fim)]
+    if macro_selecionada != "Todas":
+        df = df[df["Macro"] == macro_selecionada]
+    if regional_selecionada != "Todas":
+        df = df[df["Regional"] == regional_selecionada]
 
-            valor_destino = df_filtrado[
-                df_filtrado['Macro'] == destino
-            ][indicador_selecionado].mean()
+    # Carregar o GeoJSON
+    with open(caminho_geojson, "r", encoding="utf-8") as f:
+        geojson_data = json.load(f)
 
-            cor, largura = calculate_connection_style(
-                valor_origem, valor_destino)
-            valor_medio = (valor_origem + valor_destino) / 2
+    # Criar o mapa base
+    mapa = folium.Map(location=[-7.7183, -42.7289], zoom_start=7, tiles=None)
 
-            fig.add_trace(go.Scattergeo(
-                lon=[coordenadas[origem]['lon'], coordenadas[destino]['lon']],
-                lat=[coordenadas[origem]['lat'], coordenadas[destino]['lat']],
-                mode='lines',
-                line=dict(width=largura, color=cor),
-                text=f"{origem} → {destino}: {valor_medio:.1f}%",
-                hoverinfo='text',
-                showlegend=False
-            ))
+    # Criar colormap para diferenciação de valores
+    colormap = branca.colormap.linear.YlGnBu_09.scale(
+        min(df[indicador_selecionado]), max(df[indicador_selecionado])
+    ).to_step(10)
+    colormap.caption = f"{INDICADORES.get(indicador_selecionado, indicador_selecionado)} (%)"
+    colormap.add_to(mapa)
 
-    # Configurar layout do mapa
-    fig.update_layout(
-        title='Mapa de Distribuição - ' + INDICADORES[indicador_selecionado],
-        geo=dict(
-            scope=MAP_CONFIG['scope'],
-            projection_type=MAP_CONFIG['projection_type'],
-            showland=True,
-            landcolor='rgb(243, 243, 243)',
-            countrycolor='rgb(204, 204, 204)',
-            center=dict(
-                lon=MAP_CONFIG['center_lon'],
-                lat=MAP_CONFIG['center_lat']
-            ),
-            lataxis_range=MAP_CONFIG['lat_range'],
-            lonaxis_range=MAP_CONFIG['lon_range']
-        ),
-        height=600,
-        margin=dict(l=0, r=0, t=30, b=0)
-    )
+    # Criar camadas exclusivas para cada ano
+    primeiro_ano = True
 
-    return fig
+    for ano in anos_disponiveis:
+        df_ano = df[df["ANO"] == ano]
+        df_ano = df_ano[["MUN", indicador_selecionado]].fillna(0)
+
+        # Criar um dicionário {Município: Valor}
+        dados_municipios = df_ano.set_index(
+            "MUN")[indicador_selecionado].to_dict()
+
+        # Criar uma cópia do GeoJSON
+        geojson_copy = json.loads(json.dumps(geojson_data))
+
+        # Atualizar GeoJSON com os dados do ano
+        for feature in geojson_copy["features"]:
+            municipio = feature["properties"].get("name", "")
+            feature["properties"]["consulta"] = dados_municipios.get(
+                municipio, "Sem dados")
+
+        # Função de estilo com colormap
+        def estilo(feature):
+            municipio = feature["properties"].get("name", "")
+            valor = dados_municipios.get(municipio, None)
+            cor = colormap(valor) if isinstance(
+                valor, (int, float)) else "gray"
+            return {
+                "fillColor": cor,
+                "color": "black",
+                "fillOpacity": 0.6,
+                "weight": 1
+            }
+
+        # Criar camada para o ano
+        layer = folium.FeatureGroup(
+            name=f"Ano {ano}", overlay=False, control=True)
+
+        folium.GeoJson(
+            geojson_copy,
+            style_function=estilo,
+            highlight_function=lambda x: {
+                "fillColor": "darkblue",
+                "color": "black",
+                "fillOpacity": 0.9,
+                "weight": 2
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=["name", "consulta"],
+                aliases=[
+                    "Município", f"{INDICADORES.get(indicador_selecionado, indicador_selecionado)} (%)"],
+                labels=True
+            )
+        ).add_to(layer)
+
+        layer.add_to(mapa)
+
+        if primeiro_ano:
+            mapa.add_child(layer)
+            primeiro_ano = False
+
+    # Adicionar o LayerControl
+    folium.LayerControl(collapsed=False).add_to(mapa)
+
+    # Retornar mapa e HTML
+    return mapa, mapa.get_root().render()

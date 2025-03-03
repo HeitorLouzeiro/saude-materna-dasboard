@@ -36,3 +36,6 @@ PLOT_CONFIG = {
 
 # Caminho para o arquivo de dados
 DATA_PATH = 'data/IndicadoresConsolidados_SaudeMaterna_empilhado.xlsx'
+
+# Caminho para o arquivo GeoJSON
+GEOJSON_PATH = 'data/geojs-22-mun.json'

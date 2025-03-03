@@ -2,6 +2,7 @@
 Aplicação principal do Dashboard de Vigilância de Saúde Materna
 """
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.config import INDICADORES, PAGE_CONFIG
 from src.data.loader import (filter_data, get_available_macros,
@@ -10,7 +11,7 @@ from src.data.loader import (filter_data, get_available_macros,
 from src.visualizations.charts import (plot_heatmap, plot_histogram,
                                        plot_macro_distribution, plot_pie_chart,
                                        plot_stats, plot_timeline)
-from src.visualizations.maps import criar_mapa_macrorregioes
+from src.visualizations.maps import criar_mapa_cobertura_consultas
 
 # Configuração da página
 st.set_page_config(**PAGE_CONFIG)
@@ -99,18 +100,20 @@ try:
 except Exception as e:
     st.error(f"Erro ao gerar mapa de calor: {str(e)}")
 
-# Mapa das Macrorregiões
+# Mapa das Macrorregiões - Folium
 st.markdown("---")
-st.subheader("Mapa das Macrorregiões")
+st.subheader("Mapa das Macrorregiões - Folium")
 try:
-    fig_mapa = criar_mapa_macrorregioes(
-        df_filtrado,
-        indicador_selecionado,
-        macro_selecionada
+    mapa_folium, html_mapa = criar_mapa_cobertura_consultas(
+        ano_inicio=ano_inicio,
+        ano_fim=ano_fim,
+        macro_selecionada=macro_selecionada,
+        regional_selecionada=regional_selecionada,
+        indicador_selecionado=indicador_selecionado
     )
-    st.plotly_chart(fig_mapa, use_container_width=True)
+    components.html(html_mapa, height=600)
 except Exception as e:
-    st.error(f"Erro ao gerar mapa das macrorregiões: {str(e)}")
+    st.error(f"Erro ao gerar mapa das macrorregiões - Folium:{str(e)}")
 
 # Linha do Tempo e Gráfico de Pizza lado a lado
 st.markdown("---")
