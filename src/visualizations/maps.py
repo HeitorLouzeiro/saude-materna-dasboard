@@ -41,9 +41,9 @@ def criar_mapa_cobertura_consultas(caminho_excel="data/IndicadoresConsolidados_S
     if ano_inicio is not None and ano_fim is not None:
         df = df[(df["ANO"] >= ano_inicio) & (df["ANO"] <= ano_fim)]
     if macro_selecionada != "Todas":
-        df = df[df["MACRO_REGIAO"] == macro_selecionada]
+        df = df[df["Macro"] == macro_selecionada]
     if regional_selecionada != "Todas":
-        df = df[df["REGIONAL"] == regional_selecionada]
+        df = df[df["Regional"] == regional_selecionada]
 
     # 4️⃣ Carregar o GeoJSON
     with open(caminho_geojson, "r", encoding="utf-8") as f:

@@ -108,7 +108,8 @@ try:
         ano_inicio=ano_inicio,
         ano_fim=ano_fim,
         macro_selecionada=macro_selecionada,
-        regional_selecionada=regional_selecionada
+        regional_selecionada=regional_selecionada,
+        indicador_selecionado=indicador_selecionado
     )
     components.html(html_mapa, height=600)
 except Exception as e:
