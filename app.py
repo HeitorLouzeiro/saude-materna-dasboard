@@ -102,7 +102,7 @@ except Exception as e:
 
 # Mapa das Macrorregiões - Folium
 st.markdown("---")
-st.subheader("Mapa das Macrorregiões - Folium")
+st.subheader("Mapa das Macrorregiões")
 try:
     mapa_folium, html_mapa = criar_mapa_cobertura_consultas(
         ano_inicio=ano_inicio,
