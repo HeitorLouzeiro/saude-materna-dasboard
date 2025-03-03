@@ -15,7 +15,7 @@ def criar_mapa_cobertura_consultas(caminho_excel="data/IndicadoresConsolidados_S
                                    ano_fim=None,
                                    macro_selecionada="Todas",
                                    regional_selecionada="Todas",
-                                   indicador_selecionado="IN2 (HIV/SÍFILIS)"):
+                                   indicador_selecionado="IN1(6 CONSULTAS)"):
     """
     Cria um mapa interativo de cobertura de consultas usando Folium.
 

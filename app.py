@@ -11,8 +11,7 @@ from src.data.loader import (filter_data, get_available_macros,
 from src.visualizations.charts import (plot_heatmap, plot_histogram,
                                        plot_macro_distribution, plot_pie_chart,
                                        plot_stats, plot_timeline)
-from src.visualizations.maps import (criar_mapa_cobertura_consultas,
-                                     criar_mapa_macrorregioes)
+from src.visualizations.maps import criar_mapa_cobertura_consultas
 
 # Configuração da página
 st.set_page_config(**PAGE_CONFIG)
@@ -101,24 +100,16 @@ try:
 except Exception as e:
     st.error(f"Erro ao gerar mapa de calor: {str(e)}")
 
-# Mapa das Macrorregiões
-st.markdown("---")
-st.subheader("Mapa das Macrorregiões")
-try:
-    fig_mapa = criar_mapa_macrorregioes(
-        df_filtrado,
-        indicador_selecionado,
-        macro_selecionada
-    )
-    st.plotly_chart(fig_mapa, use_container_width=True)
-except Exception as e:
-    st.error(f"Erro ao gerar mapa das macrorregiões: {str(e)}")
-
 # Mapa das Macrorregiões - Folium
 st.markdown("---")
 st.subheader("Mapa das Macrorregiões - Folium")
 try:
-    mapa_folium, html_mapa = criar_mapa_cobertura_consultas()
+    mapa_folium, html_mapa = criar_mapa_cobertura_consultas(
+        ano_inicio=ano_inicio,
+        ano_fim=ano_fim,
+        macro_selecionada=macro_selecionada,
+        regional_selecionada=regional_selecionada
+    )
     components.html(html_mapa, height=600)
 except Exception as e:
     st.error(f"Erro ao gerar mapa das macrorregiões - Folium:{str(e)}")
