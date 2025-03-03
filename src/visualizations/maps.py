@@ -1,8 +1,10 @@
 """
-Funções para criação e visualização de mapas
+Funções para criação e visualização de mapas interativos
 """
+
 import json
 
+import branca
 import folium
 import pandas as pd
 
@@ -31,13 +33,17 @@ def criar_mapa_cobertura_consultas(caminho_excel=DATA_PATH,
     Returns:
         tuple: (folium.Map, str) Retorna o objeto do mapa e o HTML do mapa
     """
-    # 1️⃣ Carregar os dados
+
+    # Carregar os dados
     df = pd.read_excel(caminho_excel, sheet_name=0)
 
-    # 2️⃣ Obter anos únicos
+    # Verificar se a coluna "MUN" existe
+    if "MUN" not in df.columns:
+        raise ValueError("A coluna 'MUN' não foi encontrada no DataFrame.")
+
+    # Obter anos disponíveis e filtrar
     anos_disponiveis = sorted(df["ANO"].unique())
 
-    # 3️⃣ Filtrar dados com base nos parâmetros
     if ano_inicio is not None and ano_fim is not None:
         df = df[(df["ANO"] >= ano_inicio) & (df["ANO"] <= ano_fim)]
     if macro_selecionada != "Todas":
@@ -45,15 +51,23 @@ def criar_mapa_cobertura_consultas(caminho_excel=DATA_PATH,
     if regional_selecionada != "Todas":
         df = df[df["Regional"] == regional_selecionada]
 
-    # 4️⃣ Carregar o GeoJSON
+    # Carregar o GeoJSON
     with open(caminho_geojson, "r", encoding="utf-8") as f:
         geojson_data = json.load(f)
 
-    # 5️⃣ Criar o mapa base
-    mapa = folium.Map(location=[-7.7183, -42.7289], zoom_start=7)
+    # Criar o mapa base
+    mapa = folium.Map(location=[-7.7183, -42.7289], zoom_start=7, tiles=None)
 
-    # 6️⃣ Criar camadas exclusivas para cada ano
-    primeiro_ano = True  # Para ativar apenas a primeira camada
+    # Criar colormap para diferenciação de valores
+    colormap = branca.colormap.linear.YlGnBu_09.scale(
+        min(df[indicador_selecionado]), max(df[indicador_selecionado])
+    ).to_step(10)
+    colormap.caption = f"{INDICADORES.get(indicador_selecionado, indicador_selecionado)} (%)"
+    colormap.add_to(mapa)
+
+    # Criar camadas exclusivas para cada ano
+    primeiro_ano = True
+
     for ano in anos_disponiveis:
         df_ano = df[df["ANO"] == ano]
         df_ano = df_ano[["MUN", indicador_selecionado]].fillna(0)
@@ -62,33 +76,34 @@ def criar_mapa_cobertura_consultas(caminho_excel=DATA_PATH,
         dados_municipios = df_ano.set_index(
             "MUN")[indicador_selecionado].to_dict()
 
-        # Função de estilo para colorir os municípios
+        # Criar uma cópia do GeoJSON
+        geojson_copy = json.loads(json.dumps(geojson_data))
+
+        # Atualizar GeoJSON com os dados do ano
+        for feature in geojson_copy["features"]:
+            municipio = feature["properties"].get("name", "")
+            feature["properties"]["consulta"] = dados_municipios.get(
+                municipio, "Sem dados")
+
+        # Função de estilo com colormap
         def estilo(feature):
             municipio = feature["properties"].get("name", "")
-            valor = dados_municipios.get(municipio, "Sem dados")
+            valor = dados_municipios.get(municipio, None)
+            cor = colormap(valor) if isinstance(
+                valor, (int, float)) else "gray"
             return {
-                "fillColor": "blue" if valor != "Sem dados" else "gray",
+                "fillColor": cor,
                 "color": "black",
                 "fillOpacity": 0.6,
                 "weight": 1
             }
 
-        # Atualizar GeoJSON com os dados do ano
-        for feature in geojson_data["features"]:
-            municipio = feature["properties"].get("name", "")
-            feature["properties"]["consulta"] = dados_municipios.get(
-                municipio, "Sem dados")
-
-        # Criar camada do ano (somente a primeira ativa)
+        # Criar camada para o ano
         layer = folium.FeatureGroup(
             name=f"Ano {ano}", overlay=False, control=True)
 
-        # Obter o nome amigável do indicador para exibição
-        nome_indicador = INDICADORES.get(
-            indicador_selecionado, indicador_selecionado)
-
         folium.GeoJson(
-            geojson_data,
+            geojson_copy,
             style_function=estilo,
             highlight_function=lambda x: {
                 "fillColor": "darkblue",
@@ -98,20 +113,20 @@ def criar_mapa_cobertura_consultas(caminho_excel=DATA_PATH,
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["name", "consulta"],
-                aliases=["Município", f"{nome_indicador} (%)"],
+                aliases=[
+                    "Município", f"{INDICADORES.get(indicador_selecionado, indicador_selecionado)} (%)"],
                 labels=True
             )
         ).add_to(layer)
 
         layer.add_to(mapa)
 
-        # Ativar apenas a primeira camada
         if primeiro_ano:
             mapa.add_child(layer)
             primeiro_ano = False
 
-    # 7️⃣ Adicionar o LayerControl
+    # Adicionar o LayerControl
     folium.LayerControl(collapsed=False).add_to(mapa)
 
-    # Retornar tanto o mapa quanto o HTML
-    return mapa, mapa._repr_html_()
+    # Retornar mapa e HTML
+    return mapa, mapa.get_root().render()
