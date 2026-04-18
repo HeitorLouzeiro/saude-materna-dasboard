@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import seaborn as sns
 import streamlit as st
 
-from ..config import INDICADORES
+from ..config import INDICADORES, PLOT_CONFIG
 
 
 def plot_stats(df_filtrado, indicador_selecionado):
@@ -45,7 +45,7 @@ def plot_macro_distribution(df_filtrado, indicador_selecionado):
         go.Bar(
             x=dados_macro["Macro"],
             y=dados_macro[indicador_selecionado],
-            marker=dict(color='skyblue'),
+            marker=dict(color=PLOT_CONFIG['bar_color']),
             text=dados_macro[indicador_selecionado].round(2),
             textposition='outside'
         )
@@ -77,7 +77,12 @@ def plot_heatmap(df_filtrado, indicador_selecionado):
     )
 
     fig = plt.figure(figsize=(12, 8))
-    sns.heatmap(dados_regional, cmap='YlOrRd', annot=True, fmt='.1f')
+    sns.heatmap(
+        dados_regional,
+        cmap=PLOT_CONFIG['color_scheme'],
+        annot=True,
+        fmt='.1f'
+    )
     plt.title(
         f"Distribuição por Regional - {INDICADORES[indicador_selecionado]}"
     )
@@ -102,8 +107,8 @@ def plot_timeline(df_filtrado, indicador_selecionado):
             x=dados_tempo["ANO"],
             y=dados_tempo[indicador_selecionado],
             mode="lines+markers",
-            line=dict(color="blue", width=2),
-            marker=dict(size=8, color="red")
+            line=dict(color=PLOT_CONFIG['line_color'], width=2),
+            marker=dict(size=8, color=PLOT_CONFIG['marker_color'])
         )
     )
 
@@ -120,14 +125,18 @@ def plot_timeline(df_filtrado, indicador_selecionado):
 
 def plot_pie_chart(df_filtrado, indicador_selecionado):
     """
-    Cria gráfico de pizza por regional.
+    Cria gráfico de pizza com média do indicador por regional.
 
     Args:
         df_filtrado (pandas.DataFrame): DataFrame filtrado
         indicador_selecionado (str): Nome do indicador
     """
-    dados_pizza = df_filtrado.groupby(
-        "Regional")[indicador_selecionado].sum().reset_index()
+    dados_pizza = (
+        df_filtrado.groupby("Regional")[indicador_selecionado]
+        .mean()
+        .sort_values(ascending=False)
+        .reset_index()
+    )
 
     fig = go.Figure(
         data=[
@@ -140,7 +149,7 @@ def plot_pie_chart(df_filtrado, indicador_selecionado):
         ]
     )
 
-    fig.update_layout(title="Proporção do Indicador por Regional")
+    fig.update_layout(title="Média do Indicador por Regional")
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -158,7 +167,7 @@ def plot_histogram(df_filtrado, indicador_selecionado):
         df_filtrado[indicador_selecionado],
         bins=20,
         kde=True,
-        color="royalblue"
+        color=PLOT_CONFIG['hist_color']
     )
 
     plt.title(

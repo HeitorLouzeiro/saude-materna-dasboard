@@ -4,7 +4,7 @@ Aplicação principal do Dashboard de Vigilância de Saúde Materna
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.config import INDICADORES, PAGE_CONFIG
+from src.config import INDICADORES, PAGE_CONFIG, PLOT_CONFIG
 from src.data.loader import (filter_data, get_available_macros,
                              get_available_regionals, get_available_years,
                              load_data)
@@ -50,7 +50,15 @@ macro_selecionada = st.sidebar.selectbox(
 )
 
 # Seleção de Regional
-regionais = get_available_regionals(df)
+# Regional depende dos filtros de período e macro
+# para evitar combinações vazias
+df_base_regionais = df[df['ANO'].between(ano_inicio, ano_fim)]
+if macro_selecionada != "Todas":
+    df_base_regionais = df_base_regionais[
+        df_base_regionais['Macro'] == macro_selecionada
+    ]
+
+regionais = get_available_regionals(df_base_regionais)
 regional_selecionada = st.sidebar.selectbox(
     "Regional",
     ["Todas"] + list(regionais)
@@ -61,6 +69,24 @@ indicador_selecionado = st.sidebar.selectbox(
     "Indicador",
     list(INDICADORES.keys()),
     format_func=lambda x: INDICADORES[x]
+)
+
+# Layout da seção comparativa para melhorar experiência em mobile
+layout_comparativo = st.sidebar.radio(
+    "Layout da seção comparativa",
+    ["Automático", "Lado a lado", "Empilhado"],
+    help=(
+        "Automático usa abas (melhor em telas pequenas). "
+        "Lado a lado prioriza desktop."
+    )
+)
+
+altura_mapa = st.sidebar.slider(
+    "Altura do mapa (px)",
+    min_value=400,
+    max_value=900,
+    value=int(PLOT_CONFIG['default_height']),
+    step=50
 )
 
 # Filtrando dados
@@ -77,75 +103,108 @@ if df_filtrado.empty:
     st.warning("Não há dados disponíveis para os filtros selecionados.")
     st.stop()
 
+
+def run_safely(render_function, error_prefix):
+    """Executa função de renderização com tratamento de erro padrão."""
+    try:
+        render_function()
+    except Exception as e:
+        st.error(f"{error_prefix}: {str(e)}")
+
+
 # Estatísticas descritivas
 st.subheader("Estatísticas Descritivas")
-try:
-    plot_stats(df_filtrado, indicador_selecionado)
-except Exception as e:
-    st.error(f"Erro ao calcular estatísticas: {str(e)}")
+run_safely(
+    lambda: plot_stats(df_filtrado, indicador_selecionado),
+    "Erro ao calcular estatísticas"
+)
 
 # Gráfico de distribuição por Macro
 st.markdown("---")
 st.subheader("Distribuição por Macro-região")
-try:
-    plot_macro_distribution(df_filtrado, indicador_selecionado)
-except Exception as e:
-    st.error(f"Erro ao gerar gráfico de distribuição: {str(e)}")
+run_safely(
+    lambda: plot_macro_distribution(df_filtrado, indicador_selecionado),
+    "Erro ao gerar gráfico de distribuição"
+)
 
 # Mapa de calor por Regional
 st.markdown("---")
 st.subheader("Mapa de Calor por Regional")
-try:
-    plot_heatmap(df_filtrado, indicador_selecionado)
-except Exception as e:
-    st.error(f"Erro ao gerar mapa de calor: {str(e)}")
+run_safely(
+    lambda: plot_heatmap(df_filtrado, indicador_selecionado),
+    "Erro ao gerar mapa de calor"
+)
 
 # Mapa das Macrorregiões - Folium
 st.markdown("---")
 st.subheader("Mapa das Macrorregiões")
-try:
-    mapa_folium, html_mapa = criar_mapa_cobertura_consultas(
-        ano_inicio=ano_inicio,
-        ano_fim=ano_fim,
-        macro_selecionada=macro_selecionada,
-        regional_selecionada=regional_selecionada,
+
+
+def render_map_section():
+    _, html_mapa = criar_mapa_cobertura_consultas(
+        df_filtrado=df_filtrado,
         indicador_selecionado=indicador_selecionado
     )
-    components.html(html_mapa, height=600)
-except Exception as e:
-    st.error(f"Erro ao gerar mapa das macrorregiões - Folium:{str(e)}")
+    components.html(html_mapa, height=altura_mapa)
 
-# Linha do Tempo e Gráfico de Pizza lado a lado
+
+run_safely(
+    render_map_section,
+    "Erro ao gerar mapa das macrorregiões - Folium"
+)
+
+# Seção comparativa: linha do tempo e distribuição regional
 st.markdown("---")
-col1, col2 = st.columns(2)
 
-with col1:
+
+def render_timeline_section():
     st.subheader("Linha do Tempo - Evolução do Indicador")
-    try:
-        plot_timeline(df_filtrado, indicador_selecionado)
-    except Exception as e:
-        st.error(f"Erro ao gerar gráfico de linha do tempo: {str(e)}")
+    run_safely(
+        lambda: plot_timeline(df_filtrado, indicador_selecionado),
+        "Erro ao gerar gráfico de linha do tempo"
+    )
 
-with col2:
-    st.subheader("Proporção do Indicador por Regional")
-    try:
-        plot_pie_chart(df_filtrado, indicador_selecionado)
-    except Exception as e:
-        st.error(f"Erro ao gerar gráfico de pizza: {str(e)}")
+
+def render_regional_section():
+    st.subheader("Média do Indicador por Regional")
+    run_safely(
+        lambda: plot_pie_chart(df_filtrado, indicador_selecionado),
+        "Erro ao gerar gráfico de pizza"
+    )
+
+
+if layout_comparativo == "Lado a lado":
+    col1, col2 = st.columns(2)
+    with col1:
+        render_timeline_section()
+    with col2:
+        render_regional_section()
+elif layout_comparativo == "Empilhado":
+    render_timeline_section()
+    render_regional_section()
+else:
+    tab_tempo, tab_regional = st.tabs([
+        "Linha do Tempo",
+        "Distribuição Regional"
+    ])
+    with tab_tempo:
+        render_timeline_section()
+    with tab_regional:
+        render_regional_section()
 
 # Histograma
 st.markdown("---")
 st.subheader("Histograma - Distribuição dos Indicadores")
-try:
-    plot_histogram(df_filtrado, indicador_selecionado)
-except Exception as e:
-    st.error(f"Erro ao gerar histograma: {str(e)}")
+run_safely(
+    lambda: plot_histogram(df_filtrado, indicador_selecionado),
+    "Erro ao gerar histograma"
+)
 
 # Rodapé com informações
 st.markdown("---")
 st.markdown("""
     **Fonte dos dados:** Fiocruz
-    
+
     **Observações:**
     - Os dados apresentados são calculados com base nos registros oficiais
     - Os valores são atualizados conforme a disponibilidade dos dados
@@ -155,12 +214,12 @@ st.markdown("""
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Informações do Indicador")
 st.sidebar.markdown(f"""
-    **Indicador Selecionado:**  
+    **Indicador Selecionado:**
     {INDICADORES[indicador_selecionado]}
-    
-    **Período:**  
+
+    **Período:**
     {ano_inicio} - {ano_fim}
-    
+
     **Filtros Ativos:**
     - Macro: {macro_selecionada}
     - Regional: {regional_selecionada}

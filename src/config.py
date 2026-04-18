@@ -31,7 +31,12 @@ MAP_CONFIG = {
 PLOT_CONFIG = {
     'default_height': 600,
     'default_width': None,  # None para usar container_width=True
-    'color_scheme': 'YlOrRd'
+    'color_scheme': 'YlOrRd',
+    'map_color_scheme': 'YlOrRd',
+    'bar_color': '#2E86AB',
+    'line_color': '#2E86AB',
+    'marker_color': '#E07A5F',
+    'hist_color': '#2E86AB'
 }
 
 # Caminho para o arquivo de dados
